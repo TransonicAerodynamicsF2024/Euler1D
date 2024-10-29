@@ -1,11 +1,17 @@
+#   Purpose:
+#       - This script contains the class definition for the Nozzle class.
+#
+#   Record of Revision:
+#       Date            Programmer              Description
+#       ====            ==========              ===========
+#       21 Oct, 2024    Paramvir Lobana         Original Code
+
+
 import numpy as np
 import pandas as pd
 import logging
 import matplotlib.pyplot as plt
 from dataclasses import dataclass
-
-import sys
-np.set_printoptions(threshold=sys.maxsize)
 
 @dataclass
 class FluidProperties:
@@ -16,7 +22,8 @@ class nozzle_MacCormack:
                  length:float=10.0, 
                  gamma:float=1.4, 
                  mach_inlet:float=1.30, 
-                 outflow:str='supersonic') -> None:
+                 outflow:str='supersonic',
+                 cfl:float = 0.5) -> None:
         
         self.nx = nx
         self.dx = length / nx
@@ -24,7 +31,7 @@ class nozzle_MacCormack:
         self.mach_inlet = mach_inlet
         self.outflow = outflow
         self.fluid = FluidProperties(gamma=gamma)
-
+        self.cfl = cfl
         
         # Initialize variables
         self.rho = np.ones(nx)
@@ -37,7 +44,9 @@ class nozzle_MacCormack:
         self.A = 1.398 + 0.347 * np.tanh(0.8 * np.linspace(0, length, nx) - 4)
         self.dA_dx = np.gradient(self.A, self.dx)
 
+        # Initiate some functions when class is called
         self.setupLogging()
+        self.updatePlotSettings()
 
     def setupLogging(self):
         """
@@ -76,6 +85,7 @@ class nozzle_MacCormack:
             plt.gca().spines['top'].set_visible(False)
             plt.gca().yaxis.set_ticks([])
             plt.title('Nozzle Geometry')
+            plt.savefig('figs/nozzle_geometry.eps', format='eps')
             plt.show()
 
     def computeFlux(self, rho, rhou, e):
@@ -149,20 +159,20 @@ class nozzle_MacCormack:
             NOTE: Riemann invariants are used for the subsonic case.
             Additionally, the back pressure is set to 1.9 * p_inlet.
             """
-            # Specify exit pressure
+            # exit pressure
             self.p[-1] = 1.9 * self.p[0]
             c_Nm1 = np.sqrt(self.gamma * self.p[-2] / self.rho[-2])
 
-            # Compute Riemann invariant from interior point
+            # Riemann invariant from interior point
             R1 = self.u[-2] + (2 * c_Nm1) / (self.gamma - 1)
 
-            # Compute density at outlet using isentropic relation
+            # density at outlet using isentropic relation
             self.rho[-1] = self.rho[-2] * (self.p[-1] / self.p[-2])**(1 / self.gamma)
 
-            # Compute speed of sound at outlet
+            # speed of sound at outlet
             c_N = np.sqrt(self.gamma * self.p[-1] / self.rho[-1])
 
-            # Compute velocity at outlet using R1
+            # velocity at outlet using R1
             self.u[-1] = R1 - (2 * c_N) / (self.gamma - 1)
 
             # Update conservative variables
@@ -182,24 +192,10 @@ class nozzle_MacCormack:
         This condition must be satisfied at each computational point, and the 
         timestep must be taken as the smallest one out of the computational 
         domain.
-
-        Returns:
-        --------
-        dt      : float
-            Time step satisfying the CFL condition.
         """
-
-        # Compute the local wave speed at each grid point
         local_wave_speed = np.abs(u) + c
-
-        # Avoid division by zero in case local_wave_speed has zeros
-        # Replace zeros with a very small number (machine epsilon)
         local_wave_speed = np.where(local_wave_speed == 0, np.finfo(float).eps, local_wave_speed)
-
-        # Compute dt at each grid point
         dt_local = CFL_max * dx / local_wave_speed
-
-        # Take the minimum dt over the computational domain
         dt = np.min(dt_local)
 
         return dt
@@ -229,12 +225,13 @@ class nozzle_MacCormack:
 
         # Compute fluxes for predicted values
         F_pred = self.computeFlux(self.rho, self.rhou, self.e)
-
+        S[1, :] = self.p * self.dA_dx
+        
         # Corrector step
         for i in range(1, self.nx - 1):
             Q_new[:, i] = 0.5 * (Q[:, i] + Q_pred[:, i] - dt / self.dx * (F_pred[:, i] - F_pred[:, i - 1]) + dt * S[:, i])
 
-        # Update solution with boundary conditions and enforce positive bounds for stability
+        # Update solution with boundary conditions
         self.rho = Q_new[0] / self.A
         self.rhou = Q_new[1] / self.A
         self.e = Q_new[2] / self.A
@@ -242,8 +239,8 @@ class nozzle_MacCormack:
         self.applyBoundaryConditions(outflow=self.outflow)     
 
    
-    def computeMacCormack(self, maxIters = 10000, cfl=0.5):
-        dt = self.computeDt(self.u, np.sqrt(self.gamma * self.p / self.rho), self.dx, cfl)
+    def computeMacCormack(self, maxIters = 10000):
+        dt = self.computeDt(self.u, np.sqrt(self.gamma * self.p / self.rho), self.dx, self.cfl)
         self.residuals = []
         ss = 0
         while ss < maxIters:
@@ -254,55 +251,68 @@ class nozzle_MacCormack:
 
             ss += 1
 
-            if ss % 100 == 0:
-                print(f"Step: {ss}, dt: {dt:.5e}, Residual: {residual:.5e}, Time: {ss * dt:.2f}")
+            if ss % 500 == 0:
+                self.logger.info(f"Step: {ss}, dt: {dt:.5e}, Residual: {residual:.5e}, Time: {ss * dt:.2f}")
             if residual < 1e-10:
                 break
             
     def plotResults(self):
 
-        # plot the initial conditions
         x = np.linspace(0, self.nx * self.dx, self.nx)
         
+        lw = 1.0
         fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(10, 4))
-        ax1.plot(x, self.rho, 'r-', label=r'$\rho$')
+        ax1.plot(x, self.rho,   color='black', linewidth=lw)
         ax1.set_ylabel(r'$\rho$')
+        ax1.set_xlabel(r'$X$')
         ax1.grid(True)
-        ax1.legend()
 
-        ax2.plot(x, self.u, 'r-', label=r'$u$')
+        ax2.plot(x, self.u, color='black', linewidth=lw)
         ax2.set_ylabel(r'$u$')
+        ax2.set_xlabel(r'$X$')
         ax2.grid(True)
-        ax2.legend()
 
-        ax3.plot(x, self.p, 'r-', label=r'$p$')
+        ax3.plot(x, self.p, color='black', linewidth=lw)
         ax3.set_ylabel(r'$p$')
+        ax3.set_xlabel(r'$X$')
         ax3.grid(True)
-        ax3.legend()
-        
+
         plt.tight_layout()
+        plt.savefig('figs/' + self.outflow +'macCormack_nozzle.eps', format='eps')
         plt.show()
 
     def plotResiduals(self):
         x = np.linspace(0, self.nx * self.dx, self.nx)
-        # Compute Mach number from velocity and sound speed
+
         mach_number = self.u / np.sqrt(self.gamma * self.p / self.rho)
-        # Plot Mach number vs x
+
         fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10, 4))
 
-        # Mach number plot
-        ax1.plot(x, mach_number, label='Mach Number')
-        ax1.set_xlabel('x')
-        ax1.set_ylabel('Mach Number')
+        ax1.plot(x, mach_number, label=f'MacCormack CFL = {self.cfl}', color='black')
+        ax1.set_xlabel(r'$X$')
+        ax1.set_ylabel('Mach')
         ax1.grid(True)
         ax1.legend()
 
-        # Residuals plot
-        ax2.plot(self.residuals, label='Residuals')
-        ax2.set_xlabel('Iteration')
-        ax2.set_ylabel('Residual')
+        ax2.plot(self.residuals, label=f'MacCormack CFL = {self.cfl}', color='black')
+        ax2.set_yscale('log')
+        ax2.set_xlabel('Iterations')
+        ax2.set_ylabel('Log (density error)')
         ax2.grid(True)
         ax2.legend()
 
         plt.tight_layout()
+        plt.savefig('figs/' + self.outflow + 'residuals_macCormack_nozzle.eps', format='eps')
         plt.show()
+
+    def updatePlotSettings(self):
+        plt.rcParams.update({
+            'font.family': 'serif',  
+            'font.serif': ['Times New Roman'],  
+            'font.size':       11,  
+            'axes.titlesize':  11,  
+            'axes.labelsize':  11,  
+            'legend.fontsize': 9, 
+            'xtick.labelsize': 11, 
+            'ytick.labelsize': 11  
+        })  

@@ -10,7 +10,8 @@ def macCormack():
     macC = shockTube_MacCormack()
     macC.setInitialConditions()
     macC.computeMacCormack(250.0, 0.1)
-    macC.plotResults(showExact=False, showInitial=True)
+    macC.plotResults(showInitial=True, showExact=True)
+    macC.plotPressureOnly()
 
 def beamWarming():
     """
@@ -18,11 +19,13 @@ def beamWarming():
     This functions initializes a shock tube object and 
     computes the solution using the implicit Beam Warming Method.
     """
-    beamW = shockTube_BeamWarming(length=1000.0, nx=1000, t_max=250.0)
+    beamW = shockTube_BeamWarming(length=1000.0, nx=1000, t_max=250.0, cfl=0.5)
     beamW.setInitialConditions()
     beamW.computeBeamWarming()
-    beamW.plotResults(showExact=False)
+    beamW.plotResults(showExact=True, showInitial=True)
+    beamW.plotPressureOnly()
+
 
 if __name__ == "__main__":
-    #macCormack()
+    macCormack()
     beamWarming()

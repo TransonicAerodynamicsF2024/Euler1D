@@ -5,12 +5,13 @@ __pycache__/
 
 # C extensions
 *.so
-
+*.eps
 # Distribution / packaging
 .Python
 build/
 develop-eggs/
 dist/
+figs/
 downloads/
 eggs/
 .eggs/

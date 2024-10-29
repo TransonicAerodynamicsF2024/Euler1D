@@ -18,6 +18,7 @@ from scipy.linalg import solve_banded
 #        and read the file accordingly.
 
 df = pd.read_csv('modules/exact.csv')
+df['p'] = df['p'].values[::-1]
 
 @dataclass
 class FluidProperties:
@@ -40,7 +41,9 @@ class shockTube_MacCormack:
         self.u = np.zeros(nx)
         self.p = np.zeros(nx)
 
+        # Initiate some functions when class is called
         self.setupLogging()
+        self.updatePlotSettings()
 
     def setupLogging(self):
         # TODO - change the logging function for beam warming method
@@ -128,7 +131,7 @@ class shockTube_MacCormack:
                     self.logger.info(f"{'':>20} {i*self.dx:>10.2f} {self.rho[i]:>10.2f} {self.u[i]:>10.2f} {self.p[i]:>10.2f}")
 
 
-    def plotResults(self, showExact=False, showInitial=True):
+    def plotResults(self, showInitial=True, showExact=False):
         x = np.linspace(0, self.nx * self.dx, self.nx)
         initialLinewidth = 1.0
 
@@ -136,10 +139,7 @@ class shockTube_MacCormack:
         # Plot density
         if showInitial:
             ax1.plot([0, 500, 500, 1000], [1, 1, 4, 4], 'r--', label='Initial', linewidth=initialLinewidth)
-        if showExact:
-            ax1.plot(df.x, df.rho, 'g-', label='Exact', linewidth=0.75)
         ax1.plot(x, self.rho, 'b-', label='t = 250')
-
         ax1.set_ylabel(r'$\rho$')
         ax1.set_xlabel(r'$x$')
         ax1.grid(True)
@@ -148,8 +148,6 @@ class shockTube_MacCormack:
         # Plot velocity
         if showInitial:
             ax2.plot([0, 1000], [0, 0], 'r--', label='Initial', linewidth=initialLinewidth)
-        if showExact:
-            ax2.plot(df.x, df.u, 'g-', label='Exact', linewidth=0.75)
         ax2.plot(x, self.u, 'b-', label='t = 250')
 
         ax2.set_ylabel(r'$u$')
@@ -169,4 +167,30 @@ class shockTube_MacCormack:
         ax3.grid(True)
         ax3.legend()
         plt.tight_layout()
+        plt.savefig('figs/macCormack_q1_appendix.eps', format='eps')
+        plt.show()
+
+    def updatePlotSettings(self):
+        plt.rcParams.update({
+            'font.family': 'serif',  
+            'font.serif': ['Times New Roman'],  
+            'font.size':       11,  
+            'axes.titlesize':  11,  
+            'axes.labelsize':  11,  
+            'legend.fontsize': 9, 
+            'xtick.labelsize': 11, 
+            'ytick.labelsize': 11  
+        })  
+    
+    def plotPressureOnly(self):
+        x = np.linspace(0, self.nx * self.dx, self.nx)
+        plt.figure(figsize=(8,4))
+        plt.plot(df.x, df['p'], 'g-', label='Theory', linewidth=1.0)
+        plt.plot(x, self.p, 'b-', label=f'MacCormack CFL = 0.5')
+        plt.ylabel(r'$P/P_r$')
+        plt.xlabel(r'$X$')
+        plt.legend()
+        plt.gca().spines['right'].set_visible(False) 
+        plt.gca().spines['top'].set_visible(False)
+        plt.savefig('figs/macCormack_q1.eps', format='eps')
         plt.show()

@@ -19,6 +19,7 @@ from dataclasses import dataclass
 #        and read the file accordingly.
 
 df = pd.read_csv('modules/exact.csv')
+df['p'] = df['p'].values[::-1]
 
 @dataclass
 class FluidProperties:
@@ -39,20 +40,19 @@ class shockTube_BeamWarming:
         self.gamma = gamma         
         self.cfl = cfl
 
-        # Time step (CFL condition)
         self.dt = self.cfl  * self.dx / np.sqrt(gamma * 4.0 / 1.0)
         self.nt = int(self.t_max / self.dt)
 
-        # Beam-Warming parameters
         self.epsilon_e = 0.1
         self.epsilon_i = 2.5 * self.epsilon_e
         self.theta = 0.5           # Implicit scheme
 
-        # Spatial grid
         self.x = np.linspace(0, self.length, self.nx)
         self.Q = np.zeros((self.nx, 3))
 
+        # Initiate some functions when class is called
         self.setupLogging()
+        self.updatePlotSettings()
 
     def setupLogging(self):
         # TODO - change the logging function for beam warming method
@@ -152,11 +152,11 @@ class shockTube_BeamWarming:
         cols = []
         b = np.zeros(size)
 
-        # Compute second-order spatial derivatives for diffusion terms
+        # Compute second-order spatial derivatives
         Q_xx = np.zeros_like(Q)
         Q_xx[1:-1, :] = Q[2:, :] - 2 * Q[1:-1, :] + Q[0:-2, :]
 
-        # Compute first-order spatial derivatives for flux terms
+        # Compute first-order spatial derivatives
         F_x = np.zeros_like(Q)
         F_x[1:-1, :] = (F[2:, :] - F[0:-2, :]) / (2 * dx)
 
@@ -237,45 +237,18 @@ class shockTube_BeamWarming:
             if n % 100 == 0:
                 self.logger.info(f"Time step: {n}/{time_step:>10.4f}")
 
-    def plotResultsOld(self):
-        rho = self.Q[:, 0]
-        u = self.Q[:, 1] / self.Q[:, 0]
-        p = self.computePressure(self.Q)
-        plt.figure(figsize=(14, 8))
-
-        plt.subplot(3, 1, 1)
-        plt.plot(self.x, rho, label='Density')
-        plt.ylabel('Density (rho)')
-        plt.legend()
-
-        plt.subplot(3, 1, 2)
-        plt.plot(self.x, u, label='Velocity', color='orange')
-        plt.ylabel('Velocity (u)')
-        plt.legend()
-
-        plt.subplot(3, 1, 3)
-        plt.plot(self.x, p, label='Pressure', color='green')
-        plt.xlabel('Position (x)')
-        plt.ylabel('Pressure (p)')
-        plt.legend()
-
-        plt.tight_layout()
-        plt.show()
-
     def plotResults(self, showExact=False, showInitial=True):
         rho = self.Q[:, 0]
         u = self.Q[:, 1] / self.Q[:, 0]
         p = self.computePressure(self.Q)
-
+        
         x = np.linspace(0, self.nx * self.dx, self.nx)
         initialLinewidth = 1.0
 
         fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(10, 12))
-        # Plot density
+
         if showInitial:
             ax1.plot([0, 500, 500, 1000], [1, 1, 4, 4], 'r--', label='Initial', linewidth=initialLinewidth)
-        if showExact:
-            ax1.plot(df.x, df.rho, 'g-', label='Exact', linewidth=0.75)
         ax1.plot(x, rho, 'b-', label='t = 250')
 
         ax1.set_ylabel(r'$\rho$')
@@ -283,11 +256,8 @@ class shockTube_BeamWarming:
         ax1.grid(True)
         ax1.legend()
         
-        # Plot velocity
         if showInitial:
             ax2.plot([0, 1000], [0, 0], 'r--', label='Initial', linewidth=initialLinewidth)
-        if showExact:
-            ax2.plot(df.x, df.u, 'g-', label='Exact', linewidth=0.75)
         ax2.plot(x, u, 'b-', label='t = 250')
 
         ax2.set_ylabel(r'$u$')
@@ -295,7 +265,6 @@ class shockTube_BeamWarming:
         ax2.grid(True)
         ax2.legend()
         
-        # Plot pressure
         if showInitial:
             ax3.plot([0, 500, 500, 1000], [1, 1, 4, 4], 'r--', label='Initial', linewidth=initialLinewidth)
         if showExact:
@@ -307,6 +276,31 @@ class shockTube_BeamWarming:
         ax3.grid(True)
         ax3.legend()
         plt.tight_layout()
+        plt.savefig('figs/beamwarming_q1_appendix.eps', format='eps')
         plt.show()
 
+    def updatePlotSettings(self):
+        plt.rcParams.update({
+            'font.family': 'serif',  
+            'font.serif': ['Times New Roman'],  
+            'font.size':       11,  
+            'axes.titlesize':  11,  
+            'axes.labelsize':  11,  
+            'legend.fontsize': 9, 
+            'xtick.labelsize': 11, 
+            'ytick.labelsize': 11  
+        })  
 
+    def plotPressureOnly(self):
+        p = self.computePressure(self.Q)
+        x = np.linspace(0, self.nx * self.dx, self.nx)
+        plt.figure(figsize=(8,4))
+        plt.plot(df.x, df['p'], 'g-', label='Theory', linewidth=1.0)
+        plt.plot(x, p, 'b-', label=f'Implicit CFL = {self.cfl} $\epsilon_e$ = {self.epsilon_e}')
+        plt.ylabel(r'$P/P_r$')
+        plt.xlabel(r'$X$')
+        plt.legend()
+        plt.gca().spines['right'].set_visible(False) 
+        plt.gca().spines['top'].set_visible(False)
+        plt.savefig('figs/beamwarming_q1.eps', format='eps')
+        plt.show()

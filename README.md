@@ -1,10 +1,12 @@
 # SodShockTube-and-Quasi1DNozzle
 Programmer: ```Paramvir Lobana```
 
+Program written for the course: ```Transonic Aerodynamics``` ```Fall 2024``` ```Polytechnique Montreal```
+
 ## Usage
 The modules directory contain all the modules for the homework question. Referring to 
 the directory structure section, the modules are named according to their respective functions.
-The modules are called in the main python files: ```q1.py``` and ```q2.py```. \
+The modules are called in the main python files: ```q1.py``` and ```q2.py```.
 
 Running these files will run the particular problem using both the methods.
 
@@ -28,14 +30,15 @@ macC.computeMacCormack(maxIters=15000, cfl=0.5)
 macC.plotResiduals()
 macC.plotResults()
 ```
-The first line defines an object for the nozzle problem. This initiates all the default variables in the background.
-Then the initial conditions are set. The *showNozzle* flag displays the nozzle shape and area. It is set to ```False``` by default.
-Then, in the third line, the solver is called and solves the problem using the provided initial conditons.
-The residuals and results can be plotted using the ```plotResiduals``` and ```plotResults``` methods respectively.
+1. The first line defines an object for the nozzle problem. This initiates all the default variables in the background.
+2. Then the initial conditions are set. The *showNozzle* flag displays the nozzle shape and area. It is set to ```False``` by default.
+3. Then, in the third line, the solver is called and solves the problem using the provided initial conditons.
+4. The residuals and results can be plotted using the ```plotResiduals``` and ```plotResults``` methods respectively.
 
 ## Directory Structure
 ```bash
 SodShockTube-and-Quasi1DNozzle
+│
 ├── README.md
 ├── modules
 │   ├── __init__.py
